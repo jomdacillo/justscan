@@ -54,7 +54,7 @@ export default function PreviewScreen({
   const finalCanvasRef = useRef(null)  // styled (final) canvas
 
   /* ---------------------------------------------------------------------- */
-  /*  Stage 1 — Initialize corners (auto-detect or fallback to initial)      */
+  /*  Stage 1 — Initialize corners (auto-detect on the high-res still)       */
   /* ---------------------------------------------------------------------- */
   useEffect(() => {
     let cancelled = false
@@ -64,13 +64,18 @@ export default function PreviewScreen({
         const cv = await loadOpenCV()
         if (cancelled) return
 
-        // Use the corners passed in from the camera (live detection result)
-        // if available; otherwise run detection now.
-        let detected = initialCorners
-        if (!detected) {
+        // Always run detection on the captured high-res image — live detection
+        // corners from the camera could be from a frame moments before capture
+        // and may be slightly off. Fall back to live-detected corners if the
+        // high-res detection finds nothing.
+        let detected = null
+        try {
           const result = detectDocument(cv, sourceImage)
           detected = result?.corners || null
+        } catch (e) {
+          console.warn('High-res detection failed, falling back', e)
         }
+        if (!detected && initialCorners) detected = initialCorners
 
         if (cancelled) return
 
@@ -86,7 +91,6 @@ export default function PreviewScreen({
       } catch (err) {
         if (cancelled) return
         console.error('OpenCV / detection error', err)
-        // Fallback so user can still continue manually
         setCorners(defaultCorners(sourceImage.naturalWidth, sourceImage.naturalHeight, 0))
       } finally {
         if (!cancelled) setIsDetecting(false)
@@ -134,9 +138,12 @@ export default function PreviewScreen({
       finalCanvasRef.current = styled
       setPreviewUrl(styled.toDataURL('image/jpeg', 0.92))
     } catch (err) {
-      console.error(err)
+      console.error('Confirm corners failed:', err)
       haptics.error()
-      setToast({ kind: 'error', message: 'Could not process the document.' })
+      const message = err?.message
+        ? `Couldn't process: ${err.message}`
+        : 'Could not process the document.'
+      setToast({ kind: 'error', message })
       setStage('edit')
     } finally {
       setIsProcessing(false)

@@ -40,8 +40,20 @@
   justify-content: center;
   cursor: grab;
   touch-action: none;
-  transition: background-color 140ms ease, transform 120ms ease;
+  transition:
+    background-color 140ms ease,
+    transform 120ms ease,
+    left 220ms cubic-bezier(.2,.8,.2,1),
+    top 220ms cubic-bezier(.2,.8,.2,1);
   z-index: 2;
+}
+
+/* When the user is actively dragging, kill the position transition so the
+   handle tracks the finger 1:1 instead of lagging behind. */
+.ce__handle--active {
+  transition:
+    background-color 140ms ease,
+    transform 120ms ease;
 }
 
 .ce__handle:active,

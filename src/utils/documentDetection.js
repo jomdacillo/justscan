@@ -1,49 +1,39 @@
 /**
  * Document detection and perspective correction using OpenCV.js.
  *
- * The algorithm:
- *   1. Downscale the source for speed.
- *   2. Convert to grayscale, blur to reduce noise.
- *   3. Adaptive threshold + morphological close to expose the page outline.
- *   4. Canny edge detection.
- *   5. Find external contours.
- *   6. Approximate each contour to a polygon; keep the largest 4-vertex one.
- *   7. Order corners (top-left, top-right, bottom-right, bottom-left).
- *   8. Build a perspective-transform matrix and warp the source to a clean rectangle.
- *
- * Every Mat we create is .delete()'d in a finally block — OpenCV.js leaks
- * memory aggressively if you don't.
+ * Defensive rules for working with OpenCV.js in JS land:
+ *   - Every Mat/MatVector created must be .delete()'d in a finally block.
+ *     OpenCV.js leaks WASM heap memory aggressively otherwise.
+ *   - Cap source dimensions before cv.imread on large phone photos to avoid
+ *     OOM on memory-constrained devices.
+ *   - Validate the user's corner quad before warping (non-collinear, non-zero
+ *     area, ordered) — the warp matrix will fail silently otherwise.
  */
 
-const MIN_CONTOUR_AREA_RATIO = 0.15 // contour must cover at least 15% of frame
-const APPROX_EPSILON_RATIO = 0.02   // polygon approximation tolerance
+const MIN_CONTOUR_AREA_RATIO = 0.15
+const APPROX_EPSILON_RATIO = 0.02
 
-/**
- * Detect the largest 4-corner document in an image source.
- *
- * @param {object} cv - The loaded OpenCV instance.
- * @param {HTMLImageElement | HTMLCanvasElement | HTMLVideoElement} source
- * @returns {{corners: Array<{x:number, y:number}>, sourceWidth:number, sourceHeight:number} | null}
- *          Corners in source coordinates (TL, TR, BR, BL order), or null if no
- *          plausible document was found.
- */
+/* Cap source for warp at this long-edge size. Detection runs on a smaller
+ * downscale internally. Keeping warp at <= 2400 keeps memory safe on iOS
+ * Safari (which kills tabs around ~512MB of WASM heap). */
+const MAX_WARP_DIM = 2400
+
+/** Detect the largest 4-corner document in a video/image source. */
 export function detectDocument(cv, source) {
   const sourceWidth = source.naturalWidth || source.videoWidth || source.width
   const sourceHeight = source.naturalHeight || source.videoHeight || source.height
   if (!sourceWidth || !sourceHeight) return null
 
-  // Downscale for speed — long edge ~600px is plenty for detection
+  // Detection downscale — long edge ~600px is plenty for finding the page
   const maxDim = 600
   const scale = Math.min(1, maxDim / Math.max(sourceWidth, sourceHeight))
   const w = Math.round(sourceWidth * scale)
   const h = Math.round(sourceHeight * scale)
 
-  // Pull pixels into a canvas at the scaled size
   const tmpCanvas = document.createElement('canvas')
   tmpCanvas.width = w
   tmpCanvas.height = h
-  const tctx = tmpCanvas.getContext('2d')
-  tctx.drawImage(source, 0, 0, w, h)
+  tmpCanvas.getContext('2d').drawImage(source, 0, 0, w, h)
 
   const src = cv.imread(tmpCanvas)
   const gray = new cv.Mat()
@@ -56,19 +46,14 @@ export function detectDocument(cv, source) {
   let bestQuad = null
 
   try {
-    // 1. Grayscale + blur
     cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY)
     cv.GaussianBlur(gray, blur, new cv.Size(5, 5), 0)
-
-    // 2. Canny edges
     cv.Canny(blur, edges, 50, 150)
 
-    // 3. Dilate to close gaps in edges
     const kernel = cv.getStructuringElement(cv.MORPH_RECT, new cv.Size(3, 3))
     cv.dilate(edges, dilated, kernel)
     kernel.delete()
 
-    // 4. Find external contours
     cv.findContours(dilated, contours, hierarchy, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE)
 
     const minArea = w * h * MIN_CONTOUR_AREA_RATIO
@@ -77,19 +62,16 @@ export function detectDocument(cv, source) {
     for (let i = 0; i < contours.size(); i++) {
       const cnt = contours.get(i)
       const area = cv.contourArea(cnt)
-
       if (area < minArea) {
         cnt.delete()
         continue
       }
 
-      // 5. Approximate to polygon
       const peri = cv.arcLength(cnt, true)
       const approx = new cv.Mat()
       cv.approxPolyDP(cnt, approx, APPROX_EPSILON_RATIO * peri, true)
 
       if (approx.rows === 4 && cv.isContourConvex(approx) && area > bestArea) {
-        // Extract 4 points
         const pts = []
         for (let p = 0; p < 4; p++) {
           pts.push({
@@ -113,7 +95,7 @@ export function detectDocument(cv, source) {
       sourceHeight,
     }
   } catch (err) {
-    console.error('detectDocument error', err)
+    console.error('detectDocument:', err)
     return null
   } finally {
     src.delete()
@@ -127,25 +109,28 @@ export function detectDocument(cv, source) {
 }
 
 /**
- * Order 4 unsorted corners as [top-left, top-right, bottom-right, bottom-left].
- * Method: TL has smallest x+y, BR has largest x+y, TR has smallest y-x, BL has largest y-x.
+ * Order 4 unsorted corners as [TL, TR, BR, BL].
+ * Uses the sums/diffs trick: TL = min(x+y), BR = max(x+y),
+ * TR = min(y-x), BL = max(y-x).
  */
 export function orderCorners(pts) {
-  const sums = pts.map(p => p.x + p.y)
-  const diffs = pts.map(p => p.y - p.x)
+  if (!pts || pts.length !== 4) return pts
+  const sums = pts.map((p) => p.x + p.y)
+  const diffs = pts.map((p) => p.y - p.x)
 
-  const tl = pts[sums.indexOf(Math.min(...sums))]
-  const br = pts[sums.indexOf(Math.max(...sums))]
-  const tr = pts[diffs.indexOf(Math.min(...diffs))]
-  const bl = pts[diffs.indexOf(Math.max(...diffs))]
+  const tlIdx = sums.indexOf(Math.min(...sums))
+  const brIdx = sums.indexOf(Math.max(...sums))
+  const trIdx = diffs.indexOf(Math.min(...diffs))
+  const blIdx = diffs.indexOf(Math.max(...diffs))
 
-  return [tl, tr, br, bl]
+  // Defensive: if duplicate indices (degenerate quad), bail out unsorted
+  const set = new Set([tlIdx, trIdx, brIdx, blIdx])
+  if (set.size !== 4) return pts
+
+  return [pts[tlIdx], pts[trIdx], pts[brIdx], pts[blIdx]]
 }
 
-/**
- * Compute the destination rectangle dimensions from 4 corners,
- * preserving the average width and height of the input quad.
- */
+/** Compute destination rectangle dimensions from corners. */
 export function destinationSize(corners) {
   const [tl, tr, br, bl] = corners
   const widthTop = Math.hypot(tr.x - tl.x, tr.y - tl.y)
@@ -159,31 +144,88 @@ export function destinationSize(corners) {
   }
 }
 
+/** Validate that a quad is usable for warping (non-degenerate). */
+function validateQuad(corners, sourceWidth, sourceHeight) {
+  if (!Array.isArray(corners) || corners.length !== 4) {
+    return 'Need exactly 4 corners.'
+  }
+  for (const c of corners) {
+    if (!Number.isFinite(c?.x) || !Number.isFinite(c?.y)) {
+      return 'Corner coordinates are invalid.'
+    }
+  }
+  // Shoelace formula for polygon area
+  let area = 0
+  for (let i = 0; i < 4; i++) {
+    const a = corners[i]
+    const b = corners[(i + 1) % 4]
+    area += a.x * b.y - b.x * a.y
+  }
+  area = Math.abs(area) / 2
+  const minArea = sourceWidth * sourceHeight * 0.01 // at least 1% of source
+  if (area < minArea) {
+    return 'Selected area is too small.'
+  }
+  return null
+}
+
 /**
  * Apply a perspective warp to extract a flat rectangle from a quadrilateral.
- *
- * @param {object} cv - The loaded OpenCV instance.
- * @param {HTMLImageElement | HTMLCanvasElement} source
- * @param {Array<{x:number, y:number}>} corners - In TL/TR/BR/BL order
- * @returns {HTMLCanvasElement} - A new canvas containing the flattened document.
+ * Throws Error with a human-readable message on failure.
  */
-export function warpDocument(cv, source, corners) {
-  const { width, height } = destinationSize(corners)
+export function warpDocument(cv, source, rawCorners) {
+  const sourceWidth = source.naturalWidth || source.width
+  const sourceHeight = source.naturalHeight || source.height
 
-  // Read source into a Mat
+  if (!sourceWidth || !sourceHeight) {
+    throw new Error('Source image has no dimensions.')
+  }
+
+  // Re-order corners (in case the user dragged TL past TR, etc.) and clamp
+  // to image bounds so cv.matFromArray doesn't get out-of-range values.
+  const ordered = orderCorners(
+    rawCorners.map((c) => ({
+      x: Math.max(0, Math.min(sourceWidth, Number(c.x) || 0)),
+      y: Math.max(0, Math.min(sourceHeight, Number(c.y) || 0)),
+    })),
+  )
+
+  const validationError = validateQuad(ordered, sourceWidth, sourceHeight)
+  if (validationError) throw new Error(validationError)
+
+  // Downscale source if it's huge — modern phones produce 12MP+ photos
+  // which can blow OpenCV's WASM heap on iOS Safari.
+  const scale = Math.min(1, MAX_WARP_DIM / Math.max(sourceWidth, sourceHeight))
+  const drawW = Math.round(sourceWidth * scale)
+  const drawH = Math.round(sourceHeight * scale)
+
   const sourceCanvas = document.createElement('canvas')
-  sourceCanvas.width = source.naturalWidth || source.width
-  sourceCanvas.height = source.naturalHeight || source.height
-  sourceCanvas.getContext('2d').drawImage(source, 0, 0)
+  sourceCanvas.width = drawW
+  sourceCanvas.height = drawH
+  sourceCanvas.getContext('2d').drawImage(source, 0, 0, drawW, drawH)
 
-  const src = cv.imread(sourceCanvas)
-  const dst = new cv.Mat()
+  const scaledCorners = ordered.map((c) => ({
+    x: c.x * scale,
+    y: c.y * scale,
+  }))
+
+  const { width, height } = destinationSize(scaledCorners)
+
+  // Cap output dimensions just in case
+  const safeWidth = Math.min(width, MAX_WARP_DIM)
+  const safeHeight = Math.min(height, MAX_WARP_DIM)
+
+  let src = null
+  let dst = null
   let M = null
   let srcTri = null
   let dstTri = null
 
   try {
-    const [tl, tr, br, bl] = corners
+    src = cv.imread(sourceCanvas)
+    dst = new cv.Mat()
+
+    const [tl, tr, br, bl] = scaledCorners
 
     srcTri = cv.matFromArray(4, 1, cv.CV_32FC2, [
       tl.x, tl.y,
@@ -194,46 +236,40 @@ export function warpDocument(cv, source, corners) {
 
     dstTri = cv.matFromArray(4, 1, cv.CV_32FC2, [
       0, 0,
-      width, 0,
-      width, height,
-      0, height,
+      safeWidth, 0,
+      safeWidth, safeHeight,
+      0, safeHeight,
     ])
 
     M = cv.getPerspectiveTransform(srcTri, dstTri)
     cv.warpPerspective(
       src, dst, M,
-      new cv.Size(width, height),
+      new cv.Size(safeWidth, safeHeight),
       cv.INTER_LINEAR,
       cv.BORDER_CONSTANT,
       new cv.Scalar(255, 255, 255, 255),
     )
 
-    // Convert dst Mat back to a canvas
     const out = document.createElement('canvas')
-    out.width = width
-    out.height = height
+    out.width = safeWidth
+    out.height = safeHeight
     cv.imshow(out, dst)
     return out
+  } catch (err) {
+    console.error('warpDocument:', err)
+    // OpenCV throws cryptic errors like { code, msg } — surface what we can
+    const msg = err?.message || err?.msg || 'Unknown OpenCV error'
+    throw new Error(`Perspective warp failed: ${msg}`)
   } finally {
-    src.delete()
-    dst.delete()
+    if (src) src.delete()
+    if (dst) dst.delete()
     if (M) M.delete()
     if (srcTri) srcTri.delete()
     if (dstTri) dstTri.delete()
   }
 }
 
-/** Convenience: detect + warp in one call. Returns null if no document found. */
-export function detectAndWarp(cv, source) {
-  const detection = detectDocument(cv, source)
-  if (!detection) return null
-  return {
-    canvas: warpDocument(cv, source, detection.corners),
-    corners: detection.corners,
-  }
-}
-
-/** Build a default "full image" set of corners (for the manual fallback). */
+/** Build a default "full image" set of corners (with optional inset). */
 export function defaultCorners(width, height, inset = 0) {
   return [
     { x: inset,         y: inset },
