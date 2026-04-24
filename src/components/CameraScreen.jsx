@@ -34,8 +34,7 @@ export default function CameraScreen({ onCancel, onCaptured }) {
     setTimeout(() => setFlashFlash(false), 140)
     try {
       const img = await capture()
-      // No live-detected corners to pass along anymore; preview screen will detect.
-      onCaptured(img, null)
+      onCaptured(img)
     } catch (err) {
       console.error(err)
     } finally {

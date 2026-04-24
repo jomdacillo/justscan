@@ -11,15 +11,12 @@ export default function App() {
   const [screen, setScreen] = useState('home')
   const [mode, setMode] = useState('color')
   const [sourceImage, setSourceImage] = useState(null)
-  const [initialCorners, setInitialCorners] = useState(null)
   const [aboutOpen, setAboutOpen] = useState(false)
   const [errorMessage, setErrorMessage] = useState(null)
-  // bump to force remounting of the main tree after an ErrorBoundary reset
   const [bootKey, setBootKey] = useState(0)
 
-  const handleCaptured = (img, detectedCorners) => {
+  const handleCaptured = (img) => {
     setSourceImage(img)
-    setInitialCorners(detectedCorners)
     setScreen('preview')
   }
 
@@ -27,7 +24,6 @@ export default function App() {
     try {
       const img = await loadImage(file)
       setSourceImage(img)
-      setInitialCorners(null)
       setScreen('preview')
     } catch (err) {
       console.error(err)
@@ -39,19 +35,16 @@ export default function App() {
 
   const handleRetake = () => {
     setSourceImage(null)
-    setInitialCorners(null)
     setScreen('camera')
   }
 
   const handleBackToHome = () => {
     setSourceImage(null)
-    setInitialCorners(null)
     setScreen('home')
   }
 
   const handleBoundaryReset = () => {
     setSourceImage(null)
-    setInitialCorners(null)
     setScreen('home')
     setAboutOpen(false)
     setErrorMessage(null)
@@ -81,7 +74,6 @@ export default function App() {
         {screen === 'preview' && sourceImage && (
           <PreviewScreen
             sourceImage={sourceImage}
-            initialCorners={initialCorners}
             initialMode={mode}
             onBack={handleBackToHome}
             onRetake={handleRetake}
