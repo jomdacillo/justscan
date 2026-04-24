@@ -1,0 +1,196 @@
+.about-backdrop {
+  position: fixed;
+  inset: 0;
+  background-color: rgba(0, 0, 0, 0.4);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  z-index: 200;
+  -webkit-backdrop-filter: blur(2px);
+  backdrop-filter: blur(2px);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .about-backdrop {
+    animation: about-fade 200ms ease-out;
+  }
+  @keyframes about-fade {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+  }
+}
+
+.about-sheet {
+  width: 100%;
+  max-width: 540px;
+  background-color: var(--color-bg);
+  border-top-left-radius: var(--radius-xl);
+  border-top-right-radius: var(--radius-xl);
+  padding-top: var(--space-2);
+  padding-bottom: max(var(--space-5), var(--safe-bottom));
+  max-height: 88vh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  box-shadow: var(--shadow-lg);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .about-sheet {
+    animation: about-rise 280ms cubic-bezier(.2,.8,.2,1);
+  }
+  @keyframes about-rise {
+    from { transform: translateY(100%); }
+    to   { transform: translateY(0); }
+  }
+}
+
+.about-grabber {
+  width: 36px;
+  height: 5px;
+  border-radius: 999px;
+  background-color: var(--color-fill);
+  margin: var(--space-2) auto var(--space-3);
+  flex-shrink: 0;
+}
+
+.about-header {
+  display: grid;
+  grid-template-columns: 44px 1fr 44px;
+  align-items: center;
+  padding: 0 var(--space-3);
+  flex-shrink: 0;
+}
+
+.about-header-spacer { width: 44px; height: 1px; }
+
+.about-title {
+  margin: 0;
+  font-size: var(--text-headline);
+  font-weight: 600;
+  text-align: center;
+  letter-spacing: -0.01em;
+}
+
+.about-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 15px;
+  background-color: var(--color-fill);
+  color: var(--color-label-secondary);
+  justify-self: end;
+  transition: background-color 160ms ease, transform 120ms ease;
+}
+.about-close:active {
+  transform: scale(0.92);
+}
+
+.about-body {
+  padding: var(--space-5) var(--space-5) var(--space-2);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.about-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 72px;
+  height: 72px;
+  border-radius: 18px;
+  background: linear-gradient(135deg, var(--color-accent), color-mix(in srgb, var(--color-accent) 70%, #5856D6));
+  color: #FFFFFF;
+  margin: 0 auto var(--space-4);
+  box-shadow: 0 8px 24px color-mix(in srgb, var(--color-accent) 35%, transparent);
+}
+
+.about-name {
+  text-align: center;
+  font-family: var(--font-rounded);
+  font-size: var(--text-title-2);
+  font-weight: 700;
+  margin: 0 0 var(--space-2);
+  letter-spacing: -0.02em;
+}
+
+.about-tagline {
+  text-align: center;
+  margin: 0 0 var(--space-6);
+  font-size: var(--text-callout);
+  color: var(--color-label-secondary);
+  line-height: 1.4;
+}
+
+.about-features {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  background-color: var(--color-surface);
+  border-radius: var(--radius-md);
+  padding: var(--space-2);
+  margin-bottom: var(--space-5);
+}
+
+.about-feature {
+  display: grid;
+  grid-template-columns: 36px 1fr;
+  align-items: flex-start;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  border-radius: var(--radius-sm);
+}
+.about-feature + .about-feature {
+  border-top: 1px solid var(--color-separator);
+}
+
+.about-feature__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background-color: color-mix(in srgb, var(--color-accent) 14%, transparent);
+  color: var(--color-accent);
+}
+
+.about-feature__title {
+  margin: 0;
+  font-size: var(--text-subhead);
+  font-weight: 600;
+  color: var(--color-label);
+  letter-spacing: -0.01em;
+}
+
+.about-feature__text {
+  margin: 2px 0 0;
+  font-size: var(--text-footnote);
+  color: var(--color-label-secondary);
+  line-height: 1.4;
+}
+
+.about-credit {
+  text-align: center;
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--color-separator);
+}
+
+.about-credit-text {
+  margin: 0 0 var(--space-1);
+  font-size: var(--text-subhead);
+  color: var(--color-label);
+}
+
+.about-credit-text strong {
+  font-weight: 600;
+}
+
+.about-credit-version {
+  margin: 0;
+  font-size: var(--text-caption-1);
+  color: var(--color-label-tertiary);
+  letter-spacing: 0.02em;
+}

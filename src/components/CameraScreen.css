@@ -1,0 +1,204 @@
+.cam {
+  position: fixed;
+  inset: 0;
+  background-color: #000000;
+  color: #FFFFFF;
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  /* The video is full-bleed; we place top/bottom bars over it via z-index */
+  z-index: 100;
+}
+
+/* ---------- Viewport ---------- */
+.cam__viewport {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+}
+
+.cam__video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  background-color: #000;
+}
+
+/* ---------- Frame guide ---------- */
+.cam__guide {
+  position: absolute;
+  inset: 12% 8% 22% 8%;
+  pointer-events: none;
+}
+
+.cam__corner {
+  position: absolute;
+  width: 32px;
+  height: 32px;
+  border-color: rgba(255, 255, 255, 0.92);
+  border-style: solid;
+  border-width: 0;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.6));
+}
+.cam__corner--tl { top: 0; left: 0; border-top-width: 3px; border-left-width: 3px; border-top-left-radius: 8px; }
+.cam__corner--tr { top: 0; right: 0; border-top-width: 3px; border-right-width: 3px; border-top-right-radius: 8px; }
+.cam__corner--bl { bottom: 0; left: 0; border-bottom-width: 3px; border-left-width: 3px; border-bottom-left-radius: 8px; }
+.cam__corner--br { bottom: 0; right: 0; border-bottom-width: 3px; border-right-width: 3px; border-bottom-right-radius: 8px; }
+
+/* ---------- Flash ---------- */
+.cam__flash {
+  position: absolute;
+  inset: 0;
+  background-color: #FFFFFF;
+  opacity: 0;
+  pointer-events: none;
+}
+.cam__flash--on {
+  opacity: 1;
+  transition: opacity 140ms ease-out;
+}
+
+/* ---------- Top bar ---------- */
+.cam__topbar {
+  position: relative;
+  z-index: 2;
+  display: grid;
+  grid-template-columns: 44px 1fr 44px;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  padding-top: max(var(--space-3), var(--safe-top));
+  padding-left: max(var(--space-4), var(--safe-left));
+  padding-right: max(var(--space-4), var(--safe-right));
+  background: linear-gradient(
+    to bottom,
+    rgba(0, 0, 0, 0.55) 0%,
+    rgba(0, 0, 0, 0) 100%
+  );
+}
+
+.cam__topbar-title {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  font-size: var(--text-footnote);
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.85);
+  text-align: center;
+}
+
+.cam__round-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 22px;
+  background-color: rgba(40, 40, 40, 0.55);
+  color: #FFFFFF;
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  transition: background-color 160ms ease, transform 120ms ease;
+}
+.cam__round-btn:hover:not(:disabled) {
+  background-color: rgba(60, 60, 60, 0.7);
+}
+.cam__round-btn:active:not(:disabled) {
+  transform: scale(0.92);
+}
+.cam__round-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* ---------- Bottom controls ---------- */
+.cam__controls {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-5) var(--space-4);
+  padding-bottom: max(var(--space-5), var(--safe-bottom));
+  padding-left: max(var(--space-4), var(--safe-left));
+  padding-right: max(var(--space-4), var(--safe-right));
+  background: linear-gradient(
+    to top,
+    rgba(0, 0, 0, 0.6) 0%,
+    rgba(0, 0, 0, 0) 100%
+  );
+}
+
+.cam__shutter {
+  width: 76px;
+  height: 76px;
+  border-radius: 50%;
+  background-color: transparent;
+  border: 4px solid rgba(255, 255, 255, 0.95);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 120ms ease, opacity 160ms ease;
+}
+.cam__shutter:active:not(:disabled) {
+  transform: scale(0.92);
+}
+.cam__shutter:disabled {
+  opacity: 0.5;
+}
+
+.cam__shutter-inner {
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  background-color: #FFFFFF;
+  transition: transform 120ms ease;
+}
+.cam__shutter:active:not(:disabled) .cam__shutter-inner {
+  transform: scale(0.86);
+}
+
+/* ---------- Overlays ---------- */
+.cam__overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-3);
+  background-color: rgba(0, 0, 0, 0.7);
+  padding: var(--space-5);
+  text-align: center;
+  color: #FFFFFF;
+}
+
+.cam__overlay--error .cam__overlay-title {
+  font-size: var(--text-title-3);
+  font-weight: 600;
+  margin: 0;
+}
+.cam__overlay--error .cam__overlay-msg {
+  font-size: var(--text-callout);
+  color: rgba(255, 255, 255, 0.75);
+  margin: 0;
+  max-width: 30ch;
+  line-height: 1.4;
+}
+
+.cam__spinner {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: 3px solid rgba(255, 255, 255, 0.25);
+  border-top-color: #FFFFFF;
+  animation: cam-spin 800ms linear infinite;
+}
+
+@keyframes cam-spin {
+  to { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cam__spinner { animation: none; border-top-color: rgba(255,255,255,0.6); }
+}

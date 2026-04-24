@@ -1,0 +1,104 @@
+.jb {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  min-height: var(--touch-min);
+  min-width: var(--touch-min);
+  padding-inline: var(--space-5);
+  padding-block: var(--space-3);
+  border-radius: var(--radius-md);
+  font-family: var(--font-system);
+  font-size: var(--text-headline);
+  font-weight: 600;
+  line-height: 1.2;
+  letter-spacing: -0.01em;
+  transition:
+    transform 120ms ease,
+    background-color 160ms ease,
+    color 160ms ease,
+    opacity 160ms ease;
+  user-select: none;
+  -webkit-user-select: none;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.jb:active:not(:disabled) {
+  transform: scale(0.97);
+}
+
+.jb:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.jb--block {
+  width: 100%;
+}
+
+/* Sizes */
+.jb--sm {
+  padding-inline: var(--space-3);
+  padding-block: var(--space-2);
+  font-size: var(--text-subhead);
+  min-height: 36px;
+  border-radius: var(--radius-sm);
+}
+
+.jb--lg {
+  padding-block: var(--space-4);
+  font-size: var(--text-body);
+  border-radius: var(--radius-lg);
+  min-height: 52px;
+}
+
+/* ---------- Prominent (filled accent) ---------- */
+.jb--prominent {
+  background-color: var(--color-accent);
+  color: var(--color-accent-text);
+  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.05);
+}
+.jb--prominent:hover:not(:disabled) {
+  background-color: color-mix(in srgb, var(--color-accent) 92%, white);
+}
+.jb--prominent.jb--destructive {
+  background-color: var(--color-destructive);
+}
+.jb--prominent.jb--destructive:hover:not(:disabled) {
+  background-color: color-mix(in srgb, var(--color-destructive) 92%, white);
+}
+
+/* ---------- Bordered (tinted fill) ---------- */
+.jb--bordered {
+  background-color: color-mix(in srgb, var(--color-accent) 14%, transparent);
+  color: var(--color-accent);
+}
+.jb--bordered:hover:not(:disabled) {
+  background-color: color-mix(in srgb, var(--color-accent) 22%, transparent);
+}
+.jb--bordered.jb--destructive {
+  background-color: color-mix(in srgb, var(--color-destructive) 14%, transparent);
+  color: var(--color-destructive);
+}
+
+/* ---------- Plain (text only) ---------- */
+.jb--plain {
+  background-color: transparent;
+  color: var(--color-accent);
+  padding-inline: var(--space-2);
+}
+.jb--plain.jb--destructive {
+  color: var(--color-destructive);
+}
+.jb--plain.jb--cancel {
+  color: var(--color-label);
+  font-weight: 400;
+}
+
+.jb__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}

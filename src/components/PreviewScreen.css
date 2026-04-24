@@ -1,0 +1,177 @@
+.prev {
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  height: 100%;
+  max-width: 540px;
+  margin-inline: auto;
+  width: 100%;
+  background-color: var(--color-bg);
+  position: relative;
+}
+
+/* ---------- Top bar ---------- */
+.prev__topbar {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  padding: var(--space-2) var(--space-2);
+  padding-top: max(var(--space-2), var(--safe-top));
+  padding-left: max(var(--space-2), var(--safe-left));
+  padding-right: max(var(--space-2), var(--safe-right));
+  min-height: 44px;
+  border-bottom: 1px solid var(--color-separator);
+}
+
+.prev__back {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  color: var(--color-accent);
+  font-size: var(--text-body);
+  font-weight: 400;
+  min-height: 44px;
+  padding-inline: var(--space-2);
+  justify-self: start;
+  transition: opacity 160ms ease;
+}
+.prev__back:active { opacity: 0.6; }
+
+.prev__title {
+  font-family: var(--font-system);
+  font-size: var(--text-headline);
+  font-weight: 600;
+  margin: 0;
+  color: var(--color-label);
+  letter-spacing: -0.01em;
+}
+
+.prev__topbar-spacer { width: 1px; }
+
+/* ---------- Main ---------- */
+.prev__main {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  padding: var(--space-4) var(--space-4) 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.prev__stage {
+  position: relative;
+  width: 100%;
+  background-color: var(--color-surface-2);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 320px;
+  box-shadow: var(--shadow-sm);
+  border: 1px solid var(--color-separator);
+}
+
+.prev__image {
+  width: 100%;
+  height: auto;
+  max-height: 60vh;
+  object-fit: contain;
+  display: block;
+  background-color: #FFFFFF;
+  transition: opacity 200ms ease;
+}
+.prev__image--busy { opacity: 0.4; }
+
+.prev__busy {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-3);
+  background-color: color-mix(in srgb, var(--color-bg) 70%, transparent);
+  color: var(--color-label-secondary);
+  font-size: var(--text-footnote);
+  font-weight: 500;
+}
+
+.prev__busy-spinner {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 2.5px solid var(--color-fill);
+  border-top-color: var(--color-accent);
+  animation: prev-spin 800ms linear infinite;
+}
+
+@keyframes prev-spin {
+  to { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .prev__busy-spinner { animation: none; }
+}
+
+.prev__controls {
+  padding-bottom: var(--space-2);
+}
+
+/* ---------- Footer ---------- */
+.prev__actions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  padding-bottom: max(var(--space-4), var(--safe-bottom));
+  padding-left: max(var(--space-4), var(--safe-left));
+  padding-right: max(var(--space-4), var(--safe-right));
+  background-color: var(--color-bg);
+  border-top: 1px solid var(--color-separator);
+}
+
+.prev__actions-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-3);
+}
+
+/* ---------- Toast ---------- */
+.prev__toast {
+  position: fixed;
+  left: 50%;
+  bottom: calc(var(--safe-bottom) + 140px);
+  transform: translateX(-50%);
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  background-color: rgba(28, 28, 30, 0.92);
+  color: #FFFFFF;
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-pill);
+  font-size: var(--text-subhead);
+  font-weight: 500;
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  box-shadow: var(--shadow-lg);
+  pointer-events: none;
+  z-index: 50;
+  max-width: calc(100% - var(--space-6));
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.prev__toast--error {
+  background-color: rgba(255, 59, 48, 0.96);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .prev__toast {
+    animation: toast-pop 220ms ease-out;
+  }
+  @keyframes toast-pop {
+    from { opacity: 0; transform: translateX(-50%) translateY(8px); }
+    to   { opacity: 1; transform: translateX(-50%) translateY(0); }
+  }
+}

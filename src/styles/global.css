@@ -1,0 +1,204 @@
+/* ==========================================================================
+   JustScan — Global Styles
+   iOS HIG-inspired tokens. Light + Dark via system preference.
+   ========================================================================== */
+
+:root {
+  color-scheme: light dark;
+
+  /* Type scale — relative units, respect user font size */
+  --font-system: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display",
+                 "Helvetica Neue", system-ui, sans-serif;
+  --font-rounded: ui-rounded, "SF Pro Rounded", -apple-system, BlinkMacSystemFont,
+                  system-ui, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", "Menlo", "Cascadia Code", monospace;
+
+  /* iOS text styles (approximate) */
+  --text-large-title: 2.125rem; /* 34pt */
+  --text-title-1: 1.75rem;      /* 28pt */
+  --text-title-2: 1.375rem;     /* 22pt */
+  --text-title-3: 1.25rem;      /* 20pt */
+  --text-headline: 1.0625rem;   /* 17pt semibold */
+  --text-body: 1.0625rem;       /* 17pt */
+  --text-callout: 1rem;         /* 16pt */
+  --text-subhead: 0.9375rem;    /* 15pt */
+  --text-footnote: 0.8125rem;   /* 13pt */
+  --text-caption-1: 0.75rem;    /* 12pt */
+  --text-caption-2: 0.6875rem;  /* 11pt — minimum */
+
+  /* 8pt grid */
+  --space-1: 0.25rem;  /* 4 */
+  --space-2: 0.5rem;   /* 8 */
+  --space-3: 0.75rem;  /* 12 */
+  --space-4: 1rem;     /* 16 */
+  --space-5: 1.5rem;   /* 24 */
+  --space-6: 2rem;     /* 32 */
+  --space-7: 2.5rem;   /* 40 */
+  --space-8: 3rem;     /* 48 */
+
+  /* iOS corner radii */
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 22px;
+  --radius-pill: 999px;
+
+  /* Touch */
+  --touch-min: 44px;
+
+  /* Light theme — semantic */
+  --color-bg: #F2F2F7;             /* systemGroupedBackground */
+  --color-surface: #FFFFFF;        /* secondarySystemGroupedBackground */
+  --color-surface-2: #F2F2F7;      /* tertiarySystemGroupedBackground-ish */
+  --color-separator: rgba(60, 60, 67, 0.18);
+
+  --color-label: #000000;          /* label */
+  --color-label-secondary: rgba(60, 60, 67, 0.6);
+  --color-label-tertiary: rgba(60, 60, 67, 0.3);
+
+  --color-accent: #0A84FF;         /* systemBlue */
+  --color-accent-text: #FFFFFF;
+  --color-success: #30D158;        /* systemGreen */
+  --color-warning: #FF9F0A;        /* systemOrange */
+  --color-destructive: #FF3B30;    /* systemRed */
+
+  --color-fill: rgba(120, 120, 128, 0.2);
+  --color-fill-secondary: rgba(120, 120, 128, 0.16);
+
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.06);
+  --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.08);
+  --shadow-lg: 0 12px 40px rgba(0, 0, 0, 0.16);
+
+  /* Safe areas */
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-bg: #000000;
+    --color-surface: #1C1C1E;          /* secondarySystemGroupedBackground */
+    --color-surface-2: #2C2C2E;
+    --color-separator: rgba(84, 84, 88, 0.65);
+
+    --color-label: #FFFFFF;
+    --color-label-secondary: rgba(235, 235, 245, 0.6);
+    --color-label-tertiary: rgba(235, 235, 245, 0.3);
+
+    --color-accent: #0A84FF;
+    --color-success: #30D158;
+    --color-warning: #FF9F0A;
+    --color-destructive: #FF453A;
+
+    --color-fill: rgba(120, 120, 128, 0.36);
+    --color-fill-secondary: rgba(120, 120, 128, 0.32);
+
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+    --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.5);
+    --shadow-lg: 0 12px 40px rgba(0, 0, 0, 0.7);
+  }
+}
+
+/* Increase contrast support */
+@media (prefers-contrast: more) {
+  :root {
+    --color-label-secondary: rgba(60, 60, 67, 0.85);
+    --color-separator: rgba(60, 60, 67, 0.5);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --color-label-secondary: rgba(235, 235, 245, 0.85);
+      --color-separator: rgba(84, 84, 88, 0.9);
+    }
+  }
+}
+
+/* ---------- Reset ---------- */
+
+*, *::before, *::after { box-sizing: border-box; }
+
+html, body, #root {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  font-size: 100%;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+body {
+  font-family: var(--font-system);
+  font-size: var(--text-body);
+  line-height: 1.4;
+  color: var(--color-label);
+  background-color: var(--color-bg);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  overscroll-behavior: none;
+  /* Prevent the rubber-band effect from showing system color */
+  background-color: var(--color-bg);
+}
+
+button {
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+a {
+  color: var(--color-accent);
+  text-decoration: none;
+}
+
+img, svg, video, canvas {
+  display: block;
+  max-width: 100%;
+}
+
+input, select, textarea {
+  font: inherit;
+  color: inherit;
+}
+
+/* Visible focus for keyboard users only — never strip outlines without replacement */
+:focus-visible {
+  outline: 3px solid var(--color-accent);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+:focus:not(:focus-visible) {
+  outline: none;
+}
+
+/* Visually hidden, screen-reader accessible */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* Reduced motion — disable decorative animation */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

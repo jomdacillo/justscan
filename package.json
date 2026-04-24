@@ -1,0 +1,21 @@
+{
+  "name": "justscan",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "description": "JustScan — A Portable CamScanner. No fuss, just scan.",
+  "author": "Joe Dacillo",
+  "scripts": {
+    "dev": "vite --host",
+    "build": "vite build",
+    "preview": "vite preview --host"
+  },
+  "dependencies": {
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^4.3.4",
+    "vite": "^5.4.10"
+  }
+}
