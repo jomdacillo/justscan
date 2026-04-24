@@ -126,6 +126,53 @@
 }
 .prev__image--busy { opacity: 0.4; }
 
+.prev__compare-badge {
+  position: absolute;
+  top: var(--space-3);
+  left: 50%;
+  transform: translateX(-50%);
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background-color: rgba(28, 28, 30, 0.82);
+  color: #fff;
+  font-size: var(--text-caption-1);
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  pointer-events: none;
+  z-index: 2;
+}
+
+.prev__compare-btn {
+  align-self: center;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-4);
+  min-height: 36px;
+  border-radius: var(--radius-pill);
+  background-color: var(--color-fill-secondary);
+  color: var(--color-label);
+  font-family: var(--font-system);
+  font-size: var(--text-footnote);
+  font-weight: 500;
+  border: 0;
+  cursor: pointer;
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
+  transition: background-color 160ms ease, transform 120ms ease;
+}
+.prev__compare-btn:active {
+  background-color: var(--color-fill);
+  transform: scale(0.98);
+}
+
 .prev__busy {
   position: absolute;
   inset: 0;

@@ -77,6 +77,7 @@ export default function App() {
             initialMode={mode}
             onBack={handleBackToHome}
             onRetake={handleRetake}
+            onNewScan={handleRetake}
           />
         )}
 

@@ -11,6 +11,7 @@ import {
   IconContrast,
   IconCheck,
   IconSparkle,
+  IconCamera,
 } from './Icons'
 import {
   processDocument,
@@ -40,6 +41,7 @@ export default function PreviewScreen({
   initialMode,
   onBack,
   onRetake,
+  onNewScan,
 }) {
   const [stage, setStage] = useState('edit')
   const [corners, setCorners] = useState(() => {
@@ -53,6 +55,7 @@ export default function PreviewScreen({
   const [previewUrl, setPreviewUrl] = useState(null)
   const [isProcessing, setIsProcessing] = useState(false)
   const [toast, setToast] = useState(null)
+  const [showOriginal, setShowOriginal] = useState(false)
 
   const warpedCanvasRef = useRef(null) // flattened (pre-style) canvas
   const finalCanvasRef = useRef(null)  // styled (final) canvas
@@ -266,11 +269,20 @@ export default function PreviewScreen({
             <div className="prev__stage" aria-live="polite">
               {previewUrl && (
                 <img
-                  src={previewUrl}
-                  alt={`Scanned document, ${mode === 'bw' ? 'black and white' : 'color'} mode`}
+                  src={showOriginal ? sourceImage.src : previewUrl}
+                  alt={
+                    showOriginal
+                      ? 'Original photo before scanning'
+                      : `Scanned document, ${mode === 'bw' ? 'black and white' : 'color'} mode`
+                  }
                   className={`prev__image ${isProcessing ? 'prev__image--busy' : ''}`}
                   draggable={false}
                 />
+              )}
+              {showOriginal && (
+                <div className="prev__compare-badge" aria-hidden="true">
+                  Original
+                </div>
               )}
               {isProcessing && (
                 <div className="prev__busy" role="status" aria-live="polite">
@@ -279,6 +291,18 @@ export default function PreviewScreen({
                 </div>
               )}
             </div>
+
+            <button
+              type="button"
+              className="prev__compare-btn"
+              onPointerDown={() => { haptics.selection(); setShowOriginal(true) }}
+              onPointerUp={() => setShowOriginal(false)}
+              onPointerLeave={() => setShowOriginal(false)}
+              onPointerCancel={() => setShowOriginal(false)}
+              aria-label="Press and hold to compare with original"
+            >
+              Hold to compare with original
+            </button>
 
             <div className="prev__controls">
               <SegmentedControl
@@ -325,6 +349,15 @@ export default function PreviewScreen({
                 Edit Edges
               </Button>
             </div>
+            <Button
+              variant="plain"
+              size="md"
+              fullWidth
+              startIcon={<IconCamera size={18} />}
+              onClick={() => { haptics.medium(); onNewScan?.() }}
+            >
+              New Scan
+            </Button>
           </footer>
         </>
       )}

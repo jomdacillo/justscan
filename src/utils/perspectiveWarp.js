@@ -207,7 +207,7 @@ function invertPerspective(m) {
 /*  Warp                                                                      */
 /* -------------------------------------------------------------------------- */
 
-const MAX_WARP_DIM = 1800
+const MAX_WARP_DIM = 2400
 
 function validateQuad(corners, sourceWidth, sourceHeight) {
   if (!Array.isArray(corners) || corners.length !== 4) {
