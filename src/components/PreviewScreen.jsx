@@ -73,12 +73,23 @@ export default function PreviewScreen({
   /*                                                                          */
   /*  The user can already see their photo and the default quad. This effect  */
   /*  just refines the corners if OpenCV finds a better fit. If OpenCV fails  */
-  /*  to load or detection finds nothing, the defaults stay.                  */
+  /*  to load, detection finds nothing, or detection takes too long, the      */
+  /*  defaults stay and the user continues manually.                          */
   /* ---------------------------------------------------------------------- */
   useEffect(() => {
     let cancelled = false
     setIsDetecting(true)
     setCvLoadError(null)
+
+    // Hard ceiling — if detection doesn't complete in this time, give up.
+    // (Defensive; with the downscale to 500px detection should take <1s.)
+    const DETECTION_TIMEOUT_MS = 6000
+    const timeoutId = setTimeout(() => {
+      if (!cancelled) {
+        console.warn('[PreviewScreen] Detection timeout — keeping defaults')
+        setIsDetecting(false)
+      }
+    }, DETECTION_TIMEOUT_MS)
 
     ;(async () => {
       let cv
@@ -94,9 +105,8 @@ export default function PreviewScreen({
 
       if (cancelled) return
 
-      // Yield to the main thread so the UI paints before we start the
-      // CPU-heavy detection pass.
-      await new Promise((r) => setTimeout(r, 0))
+      // Yield to the browser so it paints the editor before we start heavy work
+      await new Promise((r) => setTimeout(r, 50))
       if (cancelled) return
 
       try {
@@ -111,7 +121,10 @@ export default function PreviewScreen({
       if (!cancelled) setIsDetecting(false)
     })()
 
-    return () => { cancelled = true }
+    return () => {
+      cancelled = true
+      clearTimeout(timeoutId)
+    }
   }, [sourceImage, retryToken])
 
   /** Try loading OpenCV again (called from the retry button). */
