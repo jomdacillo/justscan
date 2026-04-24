@@ -43,7 +43,20 @@ export default function PreviewScreen({
   onRetake,
 }) {
   const [stage, setStage] = useState('edit')
-  const [corners, setCorners] = useState(null)
+  const [corners, setCorners] = useState(() => {
+    // Start with a sensible default IMMEDIATELY so the user sees their photo
+    // the instant they land on this screen. Detection runs in the background
+    // and updates corners when it finishes.
+    const w = sourceImage?.naturalWidth || 0
+    const h = sourceImage?.naturalHeight || 0
+    if (!w || !h) return null
+    const inset = Math.round(Math.min(w, h) * 0.05)
+    // If the camera already ran live detection, use that as the starting point
+    if (initialCorners && initialCorners.length === 4) {
+      return orderCorners(initialCorners)
+    }
+    return defaultCorners(w, h, inset)
+  })
   const [mode, setMode] = useState(initialMode)
   const [previewUrl, setPreviewUrl] = useState(null)
   const [isProcessing, setIsProcessing] = useState(false)
@@ -56,12 +69,17 @@ export default function PreviewScreen({
   const finalCanvasRef = useRef(null)  // styled (final) canvas
 
   /* ---------------------------------------------------------------------- */
-  /*  Stage 1 — Initialize corners (auto-detect on the high-res still)       */
+  /*  Background auto-detection (non-blocking)                                */
+  /*                                                                          */
+  /*  The user can already see their photo and the default quad. This effect  */
+  /*  just refines the corners if OpenCV finds a better fit. If OpenCV fails  */
+  /*  to load or detection finds nothing, the defaults stay.                  */
   /* ---------------------------------------------------------------------- */
   useEffect(() => {
     let cancelled = false
     setIsDetecting(true)
     setCvLoadError(null)
+
     ;(async () => {
       let cv
       try {
@@ -70,46 +88,31 @@ export default function PreviewScreen({
         if (cancelled) return
         console.error('OpenCV load failed:', err)
         setCvLoadError(err?.message || 'Could not load detection engine.')
-        // Fall back to a sensible default so the user can still proceed manually
-        const inset = Math.round(
-          Math.min(sourceImage.naturalWidth, sourceImage.naturalHeight) * 0.05,
-        )
-        setCorners(defaultCorners(sourceImage.naturalWidth, sourceImage.naturalHeight, inset))
         setIsDetecting(false)
         return
       }
 
       if (cancelled) return
 
-      // Always run detection on the captured high-res image — live detection
-      // corners from the camera could be from a frame moments before capture
-      // and may be slightly off. Fall back to live-detected corners if the
-      // high-res detection finds nothing.
-      let detected = null
-      try {
-        const result = detectDocument(cv, sourceImage)
-        detected = result?.corners || null
-      } catch (e) {
-        console.warn('High-res detection failed, falling back', e)
-      }
-      if (!detected && initialCorners) detected = initialCorners
-
+      // Yield to the main thread so the UI paints before we start the
+      // CPU-heavy detection pass.
+      await new Promise((r) => setTimeout(r, 0))
       if (cancelled) return
 
-      if (detected) {
-        setCorners(orderCorners(detected))
-      } else {
-        // No document found — start with a 90% inset so the user has a
-        // reasonable starting point to drag from.
-        const inset = Math.round(
-          Math.min(sourceImage.naturalWidth, sourceImage.naturalHeight) * 0.05,
-        )
-        setCorners(defaultCorners(sourceImage.naturalWidth, sourceImage.naturalHeight, inset))
+      try {
+        const result = detectDocument(cv, sourceImage)
+        if (!cancelled && result?.corners) {
+          setCorners(orderCorners(result.corners))
+        }
+      } catch (e) {
+        console.warn('Detection failed, keeping default corners:', e)
       }
+
       if (!cancelled) setIsDetecting(false)
     })()
+
     return () => { cancelled = true }
-  }, [sourceImage, initialCorners, retryToken])
+  }, [sourceImage, retryToken])
 
   /** Try loading OpenCV again (called from the retry button). */
   const handleRetryCV = () => {
@@ -289,17 +292,22 @@ export default function PreviewScreen({
         <>
           <main className="prev__main prev__main--edit">
             <div className="prev__editor">
-              {corners && (
+              {corners ? (
                 <CornerEditor
                   sourceImage={sourceImage}
                   corners={corners}
                   onCornersChange={setCorners}
                 />
-              )}
-              {isDetecting && (
+              ) : (
                 <div className="prev__busy" role="status" aria-live="polite">
                   <div className="prev__busy-spinner" aria-hidden="true" />
-                  <span>Detecting document…</span>
+                  <span>Loading photo…</span>
+                </div>
+              )}
+              {isDetecting && corners && (
+                <div className="prev__detect-badge" role="status" aria-live="polite">
+                  <div className="prev__detect-badge-spinner" aria-hidden="true" />
+                  <span>Detecting edges…</span>
                 </div>
               )}
             </div>

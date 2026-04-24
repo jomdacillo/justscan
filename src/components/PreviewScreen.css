@@ -63,6 +63,8 @@
   gap: var(--space-3);
   display: grid;
   grid-template-rows: 1fr auto auto;
+  /* Reserve vertical space so the editor can't collapse */
+  min-height: 0;
 }
 
 .prev__editor {
@@ -70,7 +72,39 @@
   width: 100%;
   background-color: #000;
   overflow: hidden;
-  min-height: 0; /* allow grid to shrink */
+  /* Guarantee a usable render area even if grid sizing misbehaves */
+  min-height: 50vh;
+}
+
+/* Small "detecting..." pill at the top of the editor — doesn't block the photo */
+.prev__detect-badge {
+  position: absolute;
+  top: var(--space-3);
+  left: 50%;
+  transform: translateX(-50%);
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 6px 12px;
+  border-radius: 999px;
+  background-color: rgba(28, 28, 30, 0.78);
+  color: #fff;
+  font-size: var(--text-caption-1);
+  font-weight: 500;
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  z-index: 3;
+  pointer-events: none;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+.prev__detect-badge-spinner {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-top-color: #fff;
+  animation: prev-spin 800ms linear infinite;
 }
 
 .prev__hint {
