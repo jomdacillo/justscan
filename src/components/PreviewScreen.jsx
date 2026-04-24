@@ -24,7 +24,7 @@ import {
   defaultCorners,
   orderCorners,
 } from '../utils/documentDetection'
-import { loadOpenCV } from '../utils/opencvLoader'
+import { loadOpenCV, resetOpenCVLoader } from '../utils/opencvLoader'
 import { haptics } from '../utils/haptics'
 import './PreviewScreen.css'
 
@@ -48,6 +48,8 @@ export default function PreviewScreen({
   const [previewUrl, setPreviewUrl] = useState(null)
   const [isProcessing, setIsProcessing] = useState(false)
   const [isDetecting, setIsDetecting] = useState(true)
+  const [cvLoadError, setCvLoadError] = useState(null)
+  const [retryToken, setRetryToken] = useState(0)
   const [toast, setToast] = useState(null)
 
   const warpedCanvasRef = useRef(null) // flattened (pre-style) canvas
@@ -59,60 +61,83 @@ export default function PreviewScreen({
   useEffect(() => {
     let cancelled = false
     setIsDetecting(true)
+    setCvLoadError(null)
     ;(async () => {
+      let cv
       try {
-        const cv = await loadOpenCV()
-        if (cancelled) return
-
-        // Always run detection on the captured high-res image — live detection
-        // corners from the camera could be from a frame moments before capture
-        // and may be slightly off. Fall back to live-detected corners if the
-        // high-res detection finds nothing.
-        let detected = null
-        try {
-          const result = detectDocument(cv, sourceImage)
-          detected = result?.corners || null
-        } catch (e) {
-          console.warn('High-res detection failed, falling back', e)
-        }
-        if (!detected && initialCorners) detected = initialCorners
-
-        if (cancelled) return
-
-        if (detected) {
-          setCorners(orderCorners(detected))
-        } else {
-          // Fallback: 90% box centered on the image
-          const inset = Math.round(
-            Math.min(sourceImage.naturalWidth, sourceImage.naturalHeight) * 0.05,
-          )
-          setCorners(defaultCorners(sourceImage.naturalWidth, sourceImage.naturalHeight, inset))
-        }
+        cv = await loadOpenCV()
       } catch (err) {
         if (cancelled) return
-        console.error('OpenCV / detection error', err)
-        setCorners(defaultCorners(sourceImage.naturalWidth, sourceImage.naturalHeight, 0))
-      } finally {
-        if (!cancelled) setIsDetecting(false)
+        console.error('OpenCV load failed:', err)
+        setCvLoadError(err?.message || 'Could not load detection engine.')
+        // Fall back to a sensible default so the user can still proceed manually
+        const inset = Math.round(
+          Math.min(sourceImage.naturalWidth, sourceImage.naturalHeight) * 0.05,
+        )
+        setCorners(defaultCorners(sourceImage.naturalWidth, sourceImage.naturalHeight, inset))
+        setIsDetecting(false)
+        return
       }
+
+      if (cancelled) return
+
+      // Always run detection on the captured high-res image — live detection
+      // corners from the camera could be from a frame moments before capture
+      // and may be slightly off. Fall back to live-detected corners if the
+      // high-res detection finds nothing.
+      let detected = null
+      try {
+        const result = detectDocument(cv, sourceImage)
+        detected = result?.corners || null
+      } catch (e) {
+        console.warn('High-res detection failed, falling back', e)
+      }
+      if (!detected && initialCorners) detected = initialCorners
+
+      if (cancelled) return
+
+      if (detected) {
+        setCorners(orderCorners(detected))
+      } else {
+        // No document found — start with a 90% inset so the user has a
+        // reasonable starting point to drag from.
+        const inset = Math.round(
+          Math.min(sourceImage.naturalWidth, sourceImage.naturalHeight) * 0.05,
+        )
+        setCorners(defaultCorners(sourceImage.naturalWidth, sourceImage.naturalHeight, inset))
+      }
+      if (!cancelled) setIsDetecting(false)
     })()
     return () => { cancelled = true }
-  }, [sourceImage, initialCorners])
+  }, [sourceImage, initialCorners, retryToken])
+
+  /** Try loading OpenCV again (called from the retry button). */
+  const handleRetryCV = () => {
+    haptics.light()
+    resetOpenCVLoader()
+    setRetryToken((t) => t + 1)
+  }
 
   /* ---------------------------------------------------------------------- */
   /*  Stage 1 actions                                                        */
   /* ---------------------------------------------------------------------- */
 
-  const handleAutoDetect = () => {
+  const handleAutoDetect = async () => {
     haptics.light()
-    if (!window.cv) return
-    const result = detectDocument(window.cv, sourceImage)
-    if (result?.corners) {
-      setCorners(orderCorners(result.corners))
-      setToast({ kind: 'success', message: 'Document detected.' })
-    } else {
-      haptics.warning()
-      setToast({ kind: 'error', message: "Couldn't find a document." })
+    try {
+      const cv = await loadOpenCV()
+      const result = detectDocument(cv, sourceImage)
+      if (result?.corners) {
+        setCorners(orderCorners(result.corners))
+        haptics.success()
+        setToast({ kind: 'success', message: 'Document detected.' })
+      } else {
+        haptics.warning()
+        setToast({ kind: 'error', message: "Couldn't find a document edge." })
+      }
+    } catch (err) {
+      haptics.error()
+      setToast({ kind: 'error', message: 'Detection engine not loaded.' })
     }
   }
 
@@ -279,13 +304,31 @@ export default function PreviewScreen({
               )}
             </div>
 
-            <p className="prev__hint">
-              <IconSparkle size={14} aria-hidden="true" />
-              <span>Drag any corner to fit the page edges.</span>
-            </p>
+            {cvLoadError ? (
+              <div className="prev__cv-error" role="alert">
+                <p className="prev__cv-error-title">Auto-detection unavailable</p>
+                <p className="prev__cv-error-msg">{cvLoadError}</p>
+                <p className="prev__cv-error-msg">
+                  You can still drag the corners manually and continue.
+                </p>
+                <Button variant="bordered" size="sm" onClick={handleRetryCV}>
+                  Retry
+                </Button>
+              </div>
+            ) : (
+              <p className="prev__hint">
+                <IconSparkle size={14} aria-hidden="true" />
+                <span>Drag any corner to fit the page edges.</span>
+              </p>
+            )}
 
             <div className="prev__edit-quick">
-              <Button variant="bordered" size="sm" onClick={handleAutoDetect}>
+              <Button
+                variant="bordered"
+                size="sm"
+                onClick={handleAutoDetect}
+                disabled={!!cvLoadError || isDetecting}
+              >
                 Auto-detect
               </Button>
               <Button variant="plain" size="sm" onClick={handleUseFullImage}>
