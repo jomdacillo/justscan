@@ -22,9 +22,21 @@ Created by **Joe Dacillo**.
 ## Stack
 
 - **React 18** + **Vite 5**
-- **OpenCV.js** (lazy-loaded from CDN, only when the camera or preview opens)
+- **OpenCV.js** (the `@techstark/opencv-js` npm package — bundled with the app and served from your own origin via Vite's `public/` folder, so detection works without third-party CDNs)
 - Pure CSS — no preprocessor, no UI framework
 - Canvas2D + typed arrays for the styling pipeline (zero deps)
+
+## OpenCV bundling
+
+OpenCV.js is a ~10 MB WASM-embedded JavaScript file. Rather than depending on a third-party CDN (which can be slow, region-blocked, or fail entirely), JustScan bundles it with the app:
+
+1. `npm install` pulls `@techstark/opencv-js` (verbatim mirror of official OpenCV.js 4.10.0)
+2. The `postinstall` script (`scripts/copy-opencv.js`) copies `node_modules/@techstark/opencv-js/dist/opencv.js` to `public/opencv.js`
+3. Vite serves `public/` verbatim, so the file is available at `/opencv.js` in dev and `dist/opencv.js` in production
+4. The runtime loader (`src/utils/opencvLoader.js`) tries `/opencv.js` first, then falls back to jsDelivr/unpkg only if local somehow fails
+5. The `public/_headers` file tells Cloudflare Pages to cache it for a year (immutable)
+
+First scan downloads the ~10 MB once; every subsequent scan is instant.
 
 ## Run locally
 

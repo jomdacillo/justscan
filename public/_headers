@@ -1,0 +1,8 @@
+# Cache OpenCV for a year — it's a pinned version, never changes between deploys.
+# Saves ~10 MB of bandwidth per repeat visit.
+/opencv.js
+  Cache-Control: public, max-age=31536000, immutable
+
+# Vite-hashed assets are also immutable
+/assets/*
+  Cache-Control: public, max-age=31536000, immutable

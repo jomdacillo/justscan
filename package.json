@@ -1,16 +1,19 @@
 {
   "name": "justscan",
   "private": true,
-  "version": "1.0.0",
+  "version": "1.1.0",
   "type": "module",
   "description": "JustScan — A Portable CamScanner. No fuss, just scan.",
   "author": "Joe Dacillo",
   "scripts": {
-    "dev": "vite --host",
-    "build": "vite build",
-    "preview": "vite preview --host"
+    "dev": "npm run copy-opencv && vite --host",
+    "build": "npm run copy-opencv && vite build",
+    "preview": "vite preview --host",
+    "copy-opencv": "node scripts/copy-opencv.js",
+    "postinstall": "node scripts/copy-opencv.js"
   },
   "dependencies": {
+    "@techstark/opencv-js": "4.10.0-release.1",
     "react": "^18.3.1",
     "react-dom": "^18.3.1"
   },
