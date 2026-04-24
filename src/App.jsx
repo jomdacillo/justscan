@@ -7,14 +7,16 @@ import { loadImage } from './utils/imageProcessing'
 import { haptics } from './utils/haptics'
 
 export default function App() {
-  const [screen, setScreen] = useState('home') // 'home' | 'camera' | 'preview'
-  const [mode, setMode] = useState('color')    // 'color' | 'bw'
+  const [screen, setScreen] = useState('home')
+  const [mode, setMode] = useState('color')
   const [sourceImage, setSourceImage] = useState(null)
+  const [initialCorners, setInitialCorners] = useState(null)
   const [aboutOpen, setAboutOpen] = useState(false)
   const [errorMessage, setErrorMessage] = useState(null)
 
-  const handleCaptured = (img) => {
+  const handleCaptured = (img, detectedCorners) => {
     setSourceImage(img)
+    setInitialCorners(detectedCorners) // may be null — preview re-detects
     setScreen('preview')
   }
 
@@ -22,6 +24,7 @@ export default function App() {
     try {
       const img = await loadImage(file)
       setSourceImage(img)
+      setInitialCorners(null) // preview will run detection
       setScreen('preview')
     } catch (err) {
       console.error(err)
@@ -33,11 +36,13 @@ export default function App() {
 
   const handleRetake = () => {
     setSourceImage(null)
+    setInitialCorners(null)
     setScreen('camera')
   }
 
   const handleBackToHome = () => {
     setSourceImage(null)
+    setInitialCorners(null)
     setScreen('home')
   }
 
@@ -63,6 +68,7 @@ export default function App() {
       {screen === 'preview' && sourceImage && (
         <PreviewScreen
           sourceImage={sourceImage}
+          initialCorners={initialCorners}
           initialMode={mode}
           onBack={handleBackToHome}
           onRetake={handleRetake}

@@ -1,128 +1,211 @@
 /**
- * Image processing for the "scanned document" effect.
+ * Scanner-style image enhancement.
  *
- * Two output modes:
- *  - 'color'  : auto white balance + brightness/contrast lift to make paper pop
- *  - 'bw'     : grayscale + adaptive (local-mean) threshold for crisp text
+ * COLOR mode aims to look like a flatbed scanner output:
+ *   1. Estimate the brightest "paper" areas with a coarse-grid local maximum.
+ *   2. Divide the image by that local illumination to flatten lighting
+ *      (the same trick used by ScanTailor / OpenCV's "shading correction").
+ *   3. Apply an aggressive S-curve to deepen ink and brighten paper.
+ *   4. Slight desaturation toward neutral so it reads as "document"
+ *      not "vivid photo".
  *
- * All processing happens client-side on a canvas. No upload, no server.
+ * BW mode aims to look like a Xerox photocopy:
+ *   1. Same shading correction.
+ *   2. 3x3 box blur (cheap denoise) on grayscale.
+ *   3. Bradley-Roth adaptive threshold via integral image.
+ *   4. Speckle removal — flip isolated lonely pixels.
+ *
+ * All operations are pure Canvas2D + typed arrays. No deps.
  */
 
-/** Load an image from a File/Blob/data URL into an HTMLImageElement. */
+const MAX_DIM = 2200
+
 export function loadImage(source) {
   return new Promise((resolve, reject) => {
     const img = new Image()
     img.onload = () => resolve(img)
     img.onerror = () => reject(new Error('Failed to decode image'))
     img.crossOrigin = 'anonymous'
-    if (typeof source === 'string') {
-      img.src = source
-    } else {
-      img.src = URL.createObjectURL(source)
-    }
+    if (typeof source === 'string') img.src = source
+    else img.src = URL.createObjectURL(source)
   })
 }
 
-/** Draw an image onto a canvas at a sensible max dimension, returning the ctx + ImageData. */
-function drawToCanvas(img, maxDim = 2000) {
-  const scale = Math.min(1, maxDim / Math.max(img.naturalWidth, img.naturalHeight))
-  const w = Math.max(1, Math.round(img.naturalWidth * scale))
-  const h = Math.max(1, Math.round(img.naturalHeight * scale))
+/* -------------------------------------------------------------------------- */
+/*  Helpers                                                                   */
+/* -------------------------------------------------------------------------- */
 
+function sourceToCanvas(source, maxDim = MAX_DIM) {
+  const w0 = source.naturalWidth || source.width
+  const h0 = source.naturalHeight || source.height
+  const scale = Math.min(1, maxDim / Math.max(w0, h0))
+  const w = Math.max(1, Math.round(w0 * scale))
+  const h = Math.max(1, Math.round(h0 * scale))
   const canvas = document.createElement('canvas')
   canvas.width = w
   canvas.height = h
   const ctx = canvas.getContext('2d', { willReadFrequently: true })
-  ctx.drawImage(img, 0, 0, w, h)
+  ctx.drawImage(source, 0, 0, w, h)
   return { canvas, ctx, width: w, height: h }
 }
 
 /**
- * Color document enhance.
- * Steps:
- *  1. Sample the brightest 5% of pixels to estimate "paper white".
- *  2. Scale channels so paper white -> ~255 (auto white balance).
- *  3. Apply a subtle S-curve to lift contrast.
+ * Build a per-pixel "paper white" reference by taking the brightest pixel
+ * in each cell of a coarse grid, smoothing the grid, and bilinearly
+ * upsampling. Used for shading correction.
  */
-function enhanceColor(imageData) {
-  const data = imageData.data
-  const len = data.length
+function estimateIllumination(srcData, w, h) {
+  const cellsX = 24
+  const cellsY = Math.max(8, Math.round(cellsX * (h / w)))
+  const cellW = w / cellsX
+  const cellH = h / cellsY
 
-  // 1) Estimate paper white from brightness histogram
-  const hist = new Uint32Array(256)
-  for (let i = 0; i < len; i += 4) {
-    const lum = (data[i] * 0.299 + data[i + 1] * 0.587 + data[i + 2] * 0.114) | 0
-    hist[lum]++
-  }
-  const totalPixels = len / 4
-  const target = totalPixels * 0.05 // top 5%
-  let acc = 0
-  let whitePoint = 255
-  for (let v = 255; v >= 0; v--) {
-    acc += hist[v]
-    if (acc >= target) {
-      whitePoint = v
-      break
+  const grid = new Uint8ClampedArray(cellsX * cellsY * 3)
+
+  for (let cy = 0; cy < cellsY; cy++) {
+    const y0 = Math.floor(cy * cellH)
+    const y1 = Math.min(h, Math.floor((cy + 1) * cellH))
+    for (let cx = 0; cx < cellsX; cx++) {
+      const x0 = Math.floor(cx * cellW)
+      const x1 = Math.min(w, Math.floor((cx + 1) * cellW))
+
+      let mr = 0, mg = 0, mb = 0
+      for (let y = y0; y < y1; y += 2) {
+        for (let x = x0; x < x1; x += 2) {
+          const i = (y * w + x) * 4
+          if (srcData[i]     > mr) mr = srcData[i]
+          if (srcData[i + 1] > mg) mg = srcData[i + 1]
+          if (srcData[i + 2] > mb) mb = srcData[i + 2]
+        }
+      }
+      const gi = (cy * cellsX + cx) * 3
+      grid[gi]     = mr
+      grid[gi + 1] = mg
+      grid[gi + 2] = mb
     }
   }
-  whitePoint = Math.max(160, whitePoint) // safety floor
 
-  // 2) Per-channel white balance — find each channel's high quantile
-  const channelWhite = [0, 0, 0]
-  for (let c = 0; c < 3; c++) {
-    const ch = new Uint32Array(256)
-    for (let i = c; i < len; i += 4) ch[data[i]]++
-    let a = 0
-    let w = 255
-    for (let v = 255; v >= 0; v--) {
-      a += ch[v]
-      if (a >= target) {
-        w = v
-        break
+  // Light box-blur over the grid to remove cell-edge artifacts
+  const smoothed = new Uint8ClampedArray(grid.length)
+  for (let cy = 0; cy < cellsY; cy++) {
+    for (let cx = 0; cx < cellsX; cx++) {
+      let sr = 0, sg = 0, sb = 0, n = 0
+      for (let dy = -1; dy <= 1; dy++) {
+        for (let dx = -1; dx <= 1; dx++) {
+          const ny = cy + dy, nx = cx + dx
+          if (nx < 0 || ny < 0 || nx >= cellsX || ny >= cellsY) continue
+          const gi = (ny * cellsX + nx) * 3
+          sr += grid[gi]; sg += grid[gi + 1]; sb += grid[gi + 2]
+          n++
+        }
+      }
+      const oi = (cy * cellsX + cx) * 3
+      smoothed[oi]     = sr / n
+      smoothed[oi + 1] = sg / n
+      smoothed[oi + 2] = sb / n
+    }
+  }
+
+  // Bilinear upsample to (w, h, 3)
+  const illum = new Float32Array(w * h * 3)
+  for (let y = 0; y < h; y++) {
+    const gy = (y / h) * cellsY - 0.5
+    const gy0 = Math.max(0, Math.floor(gy))
+    const gy1 = Math.min(cellsY - 1, gy0 + 1)
+    const fy = Math.max(0, Math.min(1, gy - gy0))
+
+    for (let x = 0; x < w; x++) {
+      const gx = (x / w) * cellsX - 0.5
+      const gx0 = Math.max(0, Math.floor(gx))
+      const gx1 = Math.min(cellsX - 1, gx0 + 1)
+      const fx = Math.max(0, Math.min(1, gx - gx0))
+
+      const i00 = (gy0 * cellsX + gx0) * 3
+      const i01 = (gy0 * cellsX + gx1) * 3
+      const i10 = (gy1 * cellsX + gx0) * 3
+      const i11 = (gy1 * cellsX + gx1) * 3
+
+      const oi = (y * w + x) * 3
+      for (let c = 0; c < 3; c++) {
+        const v00 = smoothed[i00 + c]
+        const v01 = smoothed[i01 + c]
+        const v10 = smoothed[i10 + c]
+        const v11 = smoothed[i11 + c]
+        const top = v00 * (1 - fx) + v01 * fx
+        const bot = v10 * (1 - fx) + v11 * fx
+        // floor at 60 to avoid divide-by-tiny in dark regions
+        illum[oi + c] = Math.max(60, top * (1 - fy) + bot * fy)
       }
     }
-    channelWhite[c] = Math.max(160, w)
   }
 
-  // Build LUTs per channel: scale + soft contrast curve
-  const luts = channelWhite.map((wp) => {
-    const lut = new Uint8ClampedArray(256)
-    const gain = 255 / wp
-    for (let v = 0; v < 256; v++) {
-      // scale toward white
-      let x = Math.min(255, v * gain)
-      // soft S-curve around 128 to add contrast
-      const n = x / 255
-      const curved = 0.5 - 0.5 * Math.cos(Math.pow(n, 0.92) * Math.PI)
-      lut[v] = Math.round(curved * 255)
+  return illum
+}
+
+/* -------------------------------------------------------------------------- */
+/*  Color mode                                                                */
+/* -------------------------------------------------------------------------- */
+
+function enhanceColor(imageData) {
+  const { data, width: w, height: h } = imageData
+  const len = data.length
+
+  // 1. Estimate per-channel illumination
+  const illum = estimateIllumination(data, w, h)
+
+  // 2. Shading correction
+  for (let i = 0, p = 0; i < len; i += 4, p += 3) {
+    const r = data[i]     / illum[p]     * 255
+    const g = data[i + 1] / illum[p + 1] * 255
+    const b = data[i + 2] / illum[p + 2] * 255
+    data[i]     = r > 255 ? 255 : r
+    data[i + 1] = g > 255 ? 255 : g
+    data[i + 2] = b > 255 ? 255 : b
+  }
+
+  // 3. Aggressive S-curve via LUT
+  //    Anchors (in 0-255):
+  //      0   -> 0
+  //      80  -> 40   (deepen ink/shadows)
+  //      180 -> 230  (push paper toward white)
+  //      255 -> 255
+  const lut = new Uint8ClampedArray(256)
+  for (let v = 0; v < 256; v++) {
+    let out
+    if (v < 80) {
+      out = (v / 80) * 40
+    } else if (v < 180) {
+      out = 40 + ((v - 80) / 100) * 190
+    } else {
+      out = 230 + ((v - 180) / 75) * 25
     }
-    return lut
-  })
-
-  for (let i = 0; i < len; i += 4) {
-    data[i]     = luts[0][data[i]]
-    data[i + 1] = luts[1][data[i + 1]]
-    data[i + 2] = luts[2][data[i + 2]]
+    lut[v] = Math.round(out)
   }
+  for (let i = 0; i < len; i += 4) {
+    data[i]     = lut[data[i]]
+    data[i + 1] = lut[data[i + 1]]
+    data[i + 2] = lut[data[i + 2]]
+  }
+
+  // 4. Slight desaturation (mix 25% toward grayscale luminance)
+  const desat = 0.25
+  for (let i = 0; i < len; i += 4) {
+    const r = data[i], g = data[i + 1], b = data[i + 2]
+    const lum = r * 0.299 + g * 0.587 + b * 0.114
+    data[i]     = r + (lum - r) * desat
+    data[i + 1] = g + (lum - g) * desat
+    data[i + 2] = b + (lum - b) * desat
+  }
+
   return imageData
 }
 
-/**
- * Grayscale + adaptive threshold (Bradley-Roth style).
- * Uses an integral image so the local mean is O(1) per pixel.
- * Output is binary (paper white / ink black).
- */
-function toBlackAndWhite(imageData) {
-  const { data, width: w, height: h } = imageData
+/* -------------------------------------------------------------------------- */
+/*  B&W mode                                                                  */
+/* -------------------------------------------------------------------------- */
 
-  // 1) Convert to grayscale buffer
-  const gray = new Uint8ClampedArray(w * h)
-  for (let i = 0, p = 0; i < data.length; i += 4, p++) {
-    gray[p] = (data[i] * 0.299 + data[i + 1] * 0.587 + data[i + 2] * 0.114) | 0
-  }
-
-  // 2) Build integral image (Uint32 — fits images up to ~16M pixels at value 255)
-  const integral = new Uint32Array(w * h)
+function integralImage(gray, w, h) {
+  const integral = new Float64Array(w * h)
   for (let y = 0; y < h; y++) {
     let rowSum = 0
     for (let x = 0; x < w; x++) {
@@ -131,12 +214,54 @@ function toBlackAndWhite(imageData) {
       integral[idx] = rowSum + (y > 0 ? integral[idx - w] : 0)
     }
   }
+  return integral
+}
 
-  // 3) Adaptive threshold: pixel < (local mean * (1 - t)) -> black, else white
-  // window sized to ~1/8 of the smaller dimension
-  const half = Math.max(8, Math.floor(Math.min(w, h) / 16))
-  const t = 0.15 // threshold offset
+function toBlackAndWhite(imageData) {
+  const { data, width: w, height: h } = imageData
 
+  // 1. Shading correction
+  const illum = estimateIllumination(data, w, h)
+  for (let i = 0, p = 0; i < data.length; i += 4, p += 3) {
+    const r = data[i]     / illum[p]     * 255
+    const g = data[i + 1] / illum[p + 1] * 255
+    const b = data[i + 2] / illum[p + 2] * 255
+    data[i]     = r > 255 ? 255 : r
+    data[i + 1] = g > 255 ? 255 : g
+    data[i + 2] = b > 255 ? 255 : b
+  }
+
+  // 2. Grayscale
+  const gray = new Uint8ClampedArray(w * h)
+  for (let i = 0, p = 0; i < data.length; i += 4, p++) {
+    gray[p] = data[i] * 0.299 + data[i + 1] * 0.587 + data[i + 2] * 0.114
+  }
+
+  // 3. 3x3 box blur (cheap denoise)
+  const blurred = new Uint8ClampedArray(w * h)
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      let sum = 0, n = 0
+      for (let dy = -1; dy <= 1; dy++) {
+        const ny = y + dy
+        if (ny < 0 || ny >= h) continue
+        for (let dx = -1; dx <= 1; dx++) {
+          const nx = x + dx
+          if (nx < 0 || nx >= w) continue
+          sum += gray[ny * w + nx]
+          n++
+        }
+      }
+      blurred[y * w + x] = sum / n
+    }
+  }
+
+  // 4. Bradley-Roth adaptive threshold
+  const integral = integralImage(blurred, w, h)
+  const half = Math.max(8, Math.floor(Math.min(w, h) / 28))
+  const t = 0.18
+
+  const bin = new Uint8Array(w * h)
   for (let y = 0; y < h; y++) {
     const y1 = Math.max(0, y - half)
     const y2 = Math.min(h - 1, y + half)
@@ -152,28 +277,43 @@ function toBlackAndWhite(imageData) {
       const sum = D - B - C + A
 
       const idx = y * w + x
-      const pixel = gray[idx]
-      const isBlack = pixel * count < sum * (1 - t)
-      const out = isBlack ? 0 : 255
-
-      const di = idx * 4
-      data[di] = out
-      data[di + 1] = out
-      data[di + 2] = out
-      data[di + 3] = 255
+      const isBlack = blurred[idx] * count < sum * (1 - t)
+      bin[idx] = isBlack ? 0 : 1
     }
   }
+
+  // 5. Speckle removal: flip isolated pixels
+  const cleaned = new Uint8Array(bin)
+  for (let y = 1; y < h - 1; y++) {
+    for (let x = 1; x < w - 1; x++) {
+      const idx = y * w + x
+      let sum = 0
+      sum += bin[idx - w - 1] + bin[idx - w] + bin[idx - w + 1]
+      sum += bin[idx - 1]                    + bin[idx + 1]
+      sum += bin[idx + w - 1] + bin[idx + w] + bin[idx + w + 1]
+      if (bin[idx] === 1 && sum <= 1) cleaned[idx] = 0
+      else if (bin[idx] === 0 && sum >= 7) cleaned[idx] = 1
+    }
+  }
+
+  // 6. Write back to RGBA
+  for (let p = 0, i = 0; p < cleaned.length; p++, i += 4) {
+    const v = cleaned[p] ? 255 : 0
+    data[i] = v
+    data[i + 1] = v
+    data[i + 2] = v
+    data[i + 3] = 255
+  }
+
   return imageData
 }
 
-/**
- * Process a source image into a scanned-style canvas.
- * @param {HTMLImageElement} img
- * @param {'color' | 'bw'} mode
- * @returns {HTMLCanvasElement}
- */
-export function processDocument(img, mode = 'color') {
-  const { canvas, ctx, width, height } = drawToCanvas(img)
+/* -------------------------------------------------------------------------- */
+/*  Public API                                                                */
+/* -------------------------------------------------------------------------- */
+
+export function processDocument(source, mode = 'color') {
+  const { canvas, ctx, width, height } = sourceToCanvas(source)
   const imageData = ctx.getImageData(0, 0, width, height)
 
   if (mode === 'bw') {
@@ -186,14 +326,12 @@ export function processDocument(img, mode = 'color') {
   return canvas
 }
 
-/** Convert a canvas to a downloadable Blob (JPEG by default). */
 export function canvasToBlob(canvas, type = 'image/jpeg', quality = 0.92) {
   return new Promise((resolve) => {
     canvas.toBlob((blob) => resolve(blob), type, quality)
   })
 }
 
-/** Trigger a browser download for a blob. */
 export function downloadBlob(blob, filename) {
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
@@ -202,11 +340,9 @@ export function downloadBlob(blob, filename) {
   document.body.appendChild(a)
   a.click()
   document.body.removeChild(a)
-  // Free the URL once the download has had a chance to start
   setTimeout(() => URL.revokeObjectURL(url), 1000)
 }
 
-/** Small helper — formatted timestamp for filenames. */
 export function timestampForFilename() {
   const d = new Date()
   const pad = (n) => String(n).padStart(2, '0')

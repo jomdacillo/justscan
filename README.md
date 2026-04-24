@@ -2,30 +2,29 @@
 
 **A portable CamScanner. No fuss, just scan.**
 
-A mobile-first React + Vite app that turns your phone's camera into a document scanner. Capture a photo (or pick one from your library), and JustScan applies a "scanned document" treatment in either **Color** or **Black & White** mode. Everything runs on-device — no uploads, no accounts, no telemetry.
+A mobile-first React + Vite app that turns your phone's camera into a real document scanner. Captures a photo (or accepts one from your library), automatically detects the document edges, lets you fine-tune the corners, then warps the page flat and applies a true scanner-style enhancement in **Color** or **Black & White**. Everything runs on-device — no uploads, no accounts, no telemetry.
 
 Created by **Joe Dacillo**.
 
----
-
 ## Features
 
-- 📷 **Live camera capture** via `getUserMedia` with rear-camera preference and a swap-camera control.
-- 🖼️ **Library picker** for processing images you already have.
-- 🎨 **Two output styles**:
-  - **Color** — auto white-balance + soft S-curve contrast lift.
-  - **Black & White** — adaptive (Bradley-Roth) thresholding for crisp text.
-- 💾 **Save** as JPEG to your device. **Share** via the native share sheet where supported (iOS/Android).
-- 🌓 **Light & Dark Mode** via `prefers-color-scheme`. **Increased Contrast** support via `prefers-contrast`.
-- ♿ **Accessible**: semantic HTML, focus-visible outlines, ARIA labels on icon-only buttons, polite live regions for status, focus trap in the About sheet, reduced-motion respected.
-- 📱 **iOS HIG-compliant** layout: 44pt minimum touch targets, primary CTAs in the thumb zone, safe-area insets honored, large titles, semantic system colors.
+- 📷 **Live document detection** in the viewfinder — green outline shows what will be captured.
+- 🔍 **Auto edge detection** powered by OpenCV.js (Canny edges → contour finding → 4-corner approximation).
+- ✋ **Manual corner adjustment** — drag any of the 4 handles to refine the boundaries.
+- 📐 **Perspective warp** flattens skewed/tilted documents into a clean rectangle.
+- 🎨 **True scanner enhancement**:
+  - **Color** — local-illumination shading correction, aggressive S-curve, slight desaturation.
+  - **Black & White** — shading correction, denoise, Bradley-Roth adaptive threshold, speckle removal.
+- 💾 **Save** as JPEG. **Share** via the native share sheet.
+- 🌓 Light & Dark Mode, **Increased Contrast** support, **Reduced Motion** respected.
+- ♿ Accessible: focus-visible outlines, ARIA labels, focus trap in modals, polite live regions.
 
-## Tech
+## Stack
 
 - **React 18** + **Vite 5**
-- Pure CSS (custom properties, no preprocessor)
-- Canvas 2D for all image processing — zero dependencies for the imaging pipeline
-- Web Share API + `<a download>` fallback
+- **OpenCV.js** (lazy-loaded from CDN, only when the camera or preview opens)
+- Pure CSS — no preprocessor, no UI framework
+- Canvas2D + typed arrays for the styling pipeline (zero deps)
 
 ## Run locally
 
@@ -34,7 +33,7 @@ npm install
 npm run dev
 ```
 
-Vite will print a network URL (e.g. `http://192.168.x.x:5173`). Open it on your phone — that's the easiest way to test the camera. **Note:** modern browsers require HTTPS or `localhost` for `getUserMedia`. For phone testing over LAN you may need to use a tunneling tool (Cloudflare Tunnel, ngrok) or run Vite with HTTPS.
+Open the printed network URL on your phone. **Note:** browsers require HTTPS or `localhost` for `getUserMedia`. For LAN testing use a tunnel (Cloudflare Tunnel, ngrok) or enable Vite's HTTPS option.
 
 ## Build
 
@@ -51,19 +50,20 @@ src/
 ├── main.jsx                      # React entry
 ├── components/
 │   ├── HomeScreen.jsx/.css       # Large title + CTAs
-│   ├── CameraScreen.jsx/.css     # Viewfinder + shutter
-│   ├── PreviewScreen.jsx/.css    # Processed result + actions
+│   ├── CameraScreen.jsx/.css     # Viewfinder + live edge detection
+│   ├── PreviewScreen.jsx/.css    # Edit corners → review styled output
+│   ├── CornerEditor.jsx/.css     # Draggable 4-corner overlay
 │   ├── AboutSheet.jsx/.css       # Modal sheet
 │   ├── Button.jsx/.css
 │   ├── SegmentedControl.jsx/.css
-│   └── Icons.jsx                 # Inline SVG icon set
+│   └── Icons.jsx
 ├── hooks/
 │   └── useCamera.js              # getUserMedia wrapper
-├── utils/
-│   ├── imageProcessing.js        # Color enhance + B&W threshold
-│   └── haptics.js                # Vibration API helper
-└── styles/
-    └── global.css                # Design tokens, reset
+└── utils/
+    ├── opencvLoader.js           # Lazy CDN loader for OpenCV.js
+    ├── documentDetection.js      # Detect quads, warp perspective
+    ├── imageProcessing.js        # Scanner-style color + B&W enhancement
+    └── haptics.js
 ```
 
 ## License

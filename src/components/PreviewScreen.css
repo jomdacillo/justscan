@@ -57,6 +57,47 @@
   overscroll-behavior: contain;
 }
 
+/* Edit stage: editor fills the available space */
+.prev__main--edit {
+  padding: 0;
+  gap: var(--space-3);
+  display: grid;
+  grid-template-rows: 1fr auto auto;
+}
+
+.prev__editor {
+  position: relative;
+  width: 100%;
+  background-color: #000;
+  overflow: hidden;
+  min-height: 0; /* allow grid to shrink */
+}
+
+.prev__hint {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0 var(--space-4);
+  font-size: var(--text-footnote);
+  color: var(--color-label-secondary);
+  text-align: center;
+}
+.prev__hint svg {
+  flex-shrink: 0;
+  color: var(--color-warning);
+}
+
+.prev__edit-quick {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  padding: 0 var(--space-4) var(--space-2);
+  flex-wrap: wrap;
+}
+
 .prev__stage {
   position: relative;
   width: 100%;
